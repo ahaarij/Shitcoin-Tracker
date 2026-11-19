@@ -317,7 +317,7 @@ class Tracker:
         """Live Pump.fun trade for a watched token (candidates + runners)."""
         tr = self.tracked.get(f"solana:{msg.get('mint')}")
         mc_sol = _num(msg.get("marketCapSol"))
-        if not tr or not mc_sol or not self.sol_usd:
+        if not tr or not tr.watching or not mc_sol or not self.sol_usd:
             return
         now = time.time()
         mc = mc_sol * self.sol_usd
@@ -368,7 +368,7 @@ class Tracker:
                 tr.sniper = await analyzer.refresh(session, tr.token, tr.sniper_ctx)
             tr.sniper_errors, tr.sniper_error = 0, None
             tr.sniper_next = time.time() + (SNIPER_REFRESH if tr.hit else SNIPER_RECHECK)
-        except (AnalysisError, aiohttp.ClientError, asyncio.TimeoutError, KeyError, ValueError) as e:
+        except (AnalysisError, aiohttp.ClientError, asyncio.TimeoutError, KeyError, ValueError, RuntimeError) as e:
             tr.sniper_errors += 1
             tr.sniper_error = str(e)[:200]
             tr.sniper_next = time.time() + 15 * tr.sniper_errors

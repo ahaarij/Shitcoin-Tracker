@@ -25,8 +25,9 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config, market
+from .launches import recorder
 from .hub import hub
-from .listeners import evm, solana
+from .listeners import evm, pumplogs, solana
 
 logging.basicConfig(
     level=config.LOG_LEVEL,
@@ -45,6 +46,12 @@ async def lifespan(_: FastAPI):
         tasks.append(asyncio.create_task(evm.run(chain), name=chain.key))
     if config.ENABLE_PRICES:
         tasks.append(asyncio.create_task(market.run(), name="market"))
+    if config.SOLANA_ENABLED and config.SOLANA_LOGS_WS_URLS:
+        # every Pump.fun trade -> the runner tracker (live charts) + the launch recorder
+        pumplogs.on_trade.append(lambda ev: [cb(ev) for cb in hub.on_trade])
+        tasks.append(asyncio.create_task(pumplogs.run(), name="pumplogs"))
+        if config.LAUNCH_FILE:
+            tasks.append(asyncio.create_task(recorder.run(), name="launches"))
     tasks.append(asyncio.create_task(hub.periodic(), name="periodic"))
     log.info("started listeners: %s", ", ".join(config.ENABLED_CHAINS) or "(none)")
     log.info("allowed origins: %s", config.ALLOWED_ORIGINS)
@@ -82,6 +89,7 @@ def health() -> dict:
             c.chain: {"state": c.state, "endpoint": c.endpoint, "lastError": c.last_error}
             for c in hub.chains.values()
         },
+        "tradeStream": {k: pumplogs.state[k] for k in ("connected", "endpoint", "lastError", "trades")},
     }
 
 
@@ -112,6 +120,20 @@ def study() -> FileResponse:
     if not config.STUDY_FILE or not os.path.exists(config.STUDY_FILE):
         raise HTTPException(404, "no study data yet")
     return FileResponse(config.STUDY_FILE, media_type="application/x-ndjson", filename="study.jsonl")
+
+
+@app.get("/api/launches/stats")
+def launch_stats() -> dict:
+    return recorder.stats()
+
+
+@app.get("/api/launches")
+def launches() -> FileResponse:
+    """Download the launch recorder's file (JSON lines), when LAUNCH_FILE is set."""
+    import os
+    if not config.LAUNCH_FILE or not os.path.exists(config.LAUNCH_FILE):
+        raise HTTPException(404, "no launch data yet")
+    return FileResponse(config.LAUNCH_FILE, media_type="application/x-ndjson", filename="launches.jsonl")
 
 
 @app.get("/api/status")

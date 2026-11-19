@@ -70,7 +70,7 @@ async def _feed(url: str, up: dict[str, bool]) -> None:
             async with websockets.connect(url, ping_interval=20, ping_timeout=20, open_timeout=15,
                                           ssl=config.SSL_CONTEXT if url.startswith("wss") else None) as ws:
                 await ws.send(json.dumps({"method": "subscribeNewToken"}))
-                if _watched:  # resubscribe live trades after a reconnect
+                if _watched and not config.SOLANA_LOGS_WS_URLS:  # resubscribe live trades after a reconnect
                     await ws.send(json.dumps({"method": "subscribeTokenTrade", "keys": sorted(_watched)}))
                 _sockets[url] = ws
                 up[url] = True
@@ -83,8 +83,9 @@ async def _feed(url: str, up: dict[str, bool]) -> None:
                         msg = json.loads(raw)
                         tx_type = msg.get("txType", "create")
                         if tx_type in ("buy", "sell"):
-                            for cb in hub.on_trade:  # live trade of a watched token
-                                cb(msg)
+                            if not config.SOLANA_LOGS_WS_URLS:  # otherwise trades come from pumplogs
+                                for cb in hub.on_trade:  # live trade of a watched token
+                                    cb(msg)
                             continue
                         if tx_type != "create":
                             continue  # e.g. pumpdev's "create_pool" (migration), not a new token
@@ -125,12 +126,16 @@ def watch(mint: str) -> None:
     if mint in _watched or len(_watched) >= 300:
         return
     _watched.add(mint)
+    if config.SOLANA_LOGS_WS_URLS:
+        return  # every trade already arrives via the Solana log stream (pumplogs)
     _send_all({"method": "subscribeTokenTrade", "keys": [mint]})
 
 
 def unwatch(mint: str) -> None:
     if mint in _watched:
         _watched.discard(mint)
+        if config.SOLANA_LOGS_WS_URLS:
+            return
         _send_all({"method": "unsubscribeTokenTrade", "keys": [mint]})
 
 

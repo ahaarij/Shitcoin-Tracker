@@ -118,6 +118,19 @@ RUNNERS_FILE = _env("RUNNERS_FILE")
 # sniper rule), with a snapshot at signal time and its outcome over RUNNER_TRACK_HOURS. Empty = off.
 STUDY_FILE = _env("STUDY_FILE")
 
+# Every Pump.fun trade, read straight from Solana (logsSubscribe on the Pump.fun program). Powers the
+# Runners live charts and the launch recorder. The free public endpoint drops some messages under load;
+# a free Helius (or other) RPC WebSocket URL first gives complete coverage. Comma-separated, tried in
+# order; set to "off" to disable.
+_logs_ws = _env("SOLANA_LOGS_WS_URLS", "wss://api.mainnet-beta.solana.com") or ""
+SOLANA_LOGS_WS_URLS = [] if _logs_ws.strip().lower() == "off" else [u.strip() for u in _logs_ws.split(",") if u.strip()]
+# Launch recorder (research): every trade in the first minutes of every Pump.fun token + its outcome.
+# Set e.g. LAUNCH_FILE=/data/launches.jsonl to turn it on. ~tens of MB per day.
+LAUNCH_FILE = _env("LAUNCH_FILE")
+LAUNCH_TRADE_SECONDS = _env_int("LAUNCH_TRADE_SECONDS", 600)   # record individual trades this long
+LAUNCH_TRACK_HOURS = _env_int("LAUNCH_TRACK_HOURS", 6)         # follow the outcome this long
+LAUNCH_MAX_TRADES = _env_int("LAUNCH_MAX_TRADES", 3000)        # per token, to keep lines bounded
+
 ALLOWED_ORIGINS = _origins()
 ALLOWED_ORIGIN_REGEX = _env("ALLOWED_ORIGIN_REGEX") or None  # e.g. https://.*\.vercel\.app
 
