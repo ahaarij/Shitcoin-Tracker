@@ -114,6 +114,9 @@ SOLANA_RPC_URLS = [u.strip() for u in _env(
 # Optional: save runners to a file so they survive restarts (on Railway, attach a Volume at /data
 # and set RUNNERS_FILE=/data/runners.json). Empty = memory only.
 RUNNERS_FILE = _env("RUNNERS_FILE")
+# Optional research log (JSON lines): one line per token that hit the gain rule (runner or rejected by the
+# sniper rule), with a snapshot at signal time and its outcome over RUNNER_TRACK_HOURS. Empty = off.
+STUDY_FILE = _env("STUDY_FILE")
 
 ALLOWED_ORIGINS = _origins()
 ALLOWED_ORIGIN_REGEX = _env("ALLOWED_ORIGIN_REGEX") or None  # e.g. https://.*\.vercel\.app

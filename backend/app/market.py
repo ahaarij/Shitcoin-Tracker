@@ -106,6 +106,8 @@ class Tracked:
         self.watching = False
         self.last_tick = 0.0
         self.tick_dirty = False
+        # research log (STUDY_FILE)
+        self.signal: dict | None = None          # snapshot when the app would have flagged it
 
     @property
     def age(self) -> float:
@@ -169,6 +171,8 @@ class Tracker:
             finally:
                 ticker.cancel()
                 self._save()
+                for tr in self.tracked.values():  # shutting down: log unfinished ones too
+                    self._study(tr, complete=False)
 
     async def _tick_loop(self) -> None:
         """Once a second, push the latest live-trade updates of runners to browsers."""
@@ -201,6 +205,10 @@ class Tracker:
             tier, every = 1, 10
         elif tr.candidate and age <= WINDOW + 120:
             tier, every = 1, 10
+        elif tr.candidate and config.STUDY_FILE:
+            if age > RUNNER_TRACK:
+                return None
+            tier, every = 3, 60  # keep following rejected candidates so the study has their outcome
         elif age <= WINDOW:
             tier, every = 2, (30 if tr.history else 40)
         elif age <= FEED_TRACK:
@@ -377,12 +385,15 @@ class Tracker:
                 hub.broadcast({"type": "runners", "data": [rec]})
             return
 
+        if tr.candidate and tr.signal is None:
+            tr.signal = self._snapshot(tr)  # first sniper read after the gain rule
         if tr.candidate and tr.sniper["passes"] and tr.age <= WINDOW + 120:
             self._promote(tr)
 
     def _promote(self, tr: Tracked) -> None:
         tr.hit = {**tr.candidate, "verifiedAt": iso_now(), "sniperPctAtVerify": tr.sniper["holdingPct"]}
         rec = self._record(tr)
+        tr.signal = self._snapshot(tr, rec)  # what you'd have seen when it appeared on the page
         self.runners[tr.token["id"]] = rec
         self.dirty = True
         hub.broadcast({"type": "runners", "data": [rec]})
@@ -436,6 +447,27 @@ class Tracker:
             "updatedAt": iso_now(),
         }
 
+    def _snapshot(self, tr: Tracked, rec: dict | None = None) -> dict:
+        rec = dict(rec or self._record(tr))
+        rec.pop("history", None)
+        rec["candidate"] = tr.candidate
+        rec["snapshotAgeSec"] = int(tr.age)
+        return rec
+
+    def _study(self, tr: Tracked, complete: bool = True) -> None:
+        if not config.STUDY_FILE or not tr.candidate:
+            return
+        final = self._record(tr)
+        final["candidate"] = tr.candidate
+        line = {"id": tr.token["id"], "runner": tr.hit is not None, "complete": complete,
+                "signal": tr.signal, "final": final,
+                "fullHistory": [[int(ts - tr.born), round(v, 2)] for ts, v in tr.history]}
+        try:
+            with open(config.STUDY_FILE, "a") as f:
+                f.write(json.dumps(line) + "\n")
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not write %s: %s", config.STUDY_FILE, e)
+
     def _prune(self) -> None:
         now = time.time()
         for tr in self.tracked.values():
@@ -443,8 +475,10 @@ class Tracker:
             if tr.candidate and not tr.hit and now - tr.born > WINDOW + 120 and tr.watching:
                 self._unwatch(tr)
         for k in [k for k, tr in self.tracked.items()
-                  if now - tr.born > (RUNNER_TRACK if tr.hit else FEED_TRACK) + 60]:
+                  if now - tr.born > (RUNNER_TRACK if tr.hit or (tr.candidate and config.STUDY_FILE)
+                                      else FEED_TRACK) + 60]:
             tr = self.tracked.pop(k)
+            self._study(tr)
             self._unwatch(tr)
             if tr.hit and k in self.runners:
                 self.runners[k]["tracking"] = False
