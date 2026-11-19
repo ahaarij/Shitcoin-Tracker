@@ -133,7 +133,9 @@ def launches() -> FileResponse:
     import os
     if not config.LAUNCH_FILE or not os.path.exists(config.LAUNCH_FILE):
         raise HTTPException(404, "no launch data yet")
-    return FileResponse(config.LAUNCH_FILE, media_type="application/x-ndjson", filename="launches.jsonl")
+    gz = config.LAUNCH_FILE.endswith(".gz")
+    return FileResponse(config.LAUNCH_FILE, media_type="application/gzip" if gz else "application/x-ndjson",
+                        filename="launches.jsonl.gz" if gz else "launches.jsonl")
 
 
 @app.get("/api/status")

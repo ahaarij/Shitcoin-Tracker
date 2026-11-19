@@ -21,6 +21,7 @@ Per token:
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import logging
 import os
@@ -236,7 +237,10 @@ class Recorder:
         if not lines:
             return
         try:
-            with open(config.LAUNCH_FILE, "a") as f:
+            # A path ending in .gz is written gzip-compressed (~3x smaller); each batch is its own gzip
+            # member, which `gzip -d` / Python's gzip module read as one continuous file.
+            opener = gzip.open if config.LAUNCH_FILE.endswith(".gz") else open
+            with opener(config.LAUNCH_FILE, "at") as f:
                 for line in lines:
                     f.write(json.dumps(line, separators=(",", ":")) + "\n")
             self.written += len(lines)

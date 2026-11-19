@@ -306,7 +306,7 @@ All are optional. See `backend/.env.example` for the full list.
 | `SOLANA_RPC_URLS` | publicnode, solana.com | Solana RPCs for sniper checks; a free Helius URL raises limits |
 | `RUNNERS_FILE` | none | e.g. `/data/runners.json` to keep runners across restarts |
 | `STUDY_FILE` | none | e.g. `/data/study.jsonl`: research log of runner candidates (download at `/api/study`) |
-| `LAUNCH_FILE` | none | e.g. `/data/launches.jsonl`: every trade in the first 10 min of every Pump.fun launch + 6 h outcome (download at `/api/launches`, progress at `/api/launches/stats`) |
+| `LAUNCH_FILE` | none | e.g. `/data/launches.jsonl.gz` (compressed): every trade in the first 10 min of every Pump.fun launch + 6 h outcome (download at `/api/launches`, progress at `/api/launches/stats`) |
 | `SOLANA_LOGS_WS_URLS` | `wss://api.mainnet-beta.solana.com` | where every Pump.fun trade is read from; a free Helius WebSocket URL gives complete coverage. `off` disables it |
 | `BUFFER_SIZE` / `SNAPSHOT_SIZE` | 1000 / 100 | Tokens kept in memory / sent on connect |
 
