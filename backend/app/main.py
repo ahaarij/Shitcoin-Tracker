@@ -20,7 +20,8 @@ import logging
 import re
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config, market
@@ -102,6 +103,15 @@ def runners(limit: int = Query(100, ge=1, le=300)) -> dict:
         },
         "runners": market.tracker.runner_list(limit),
     }
+
+
+@app.get("/api/study")
+def study() -> FileResponse:
+    """Download the research log (JSON lines), when STUDY_FILE is set."""
+    import os
+    if not config.STUDY_FILE or not os.path.exists(config.STUDY_FILE):
+        raise HTTPException(404, "no study data yet")
+    return FileResponse(config.STUDY_FILE, media_type="application/x-ndjson", filename="study.jsonl")
 
 
 @app.get("/api/status")
